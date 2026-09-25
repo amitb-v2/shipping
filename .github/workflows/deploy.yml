@@ -14,8 +14,10 @@
 # Per-repository values: SERVICE_NAME, ECR_REPOSITORY, DOCKERFILE_PATH,
 # BUILD_CONTEXT, STABLE_SECONDS.
 #
-# AWS credentials: GitHub OIDC only. Set the repository variable
-# AWS_DEPLOY_ROLE_ARN (Settings -> Secrets and variables -> Actions -> Variables).
+# Repository variables (Settings -> Secrets and variables -> Actions -> Variables):
+#   AWS_DEPLOY_ROLE_ARN  IAM role for GitHub OIDC login (required)
+#   EC2_INSTANCE_ID      instance to deploy to (required)
+#   AWS_REGION           AWS region (optional, default us-east-1)
 # -----------------------------------------------------------------------------
 
 name: Deploy to EC2
@@ -36,8 +38,8 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  AWS_REGION: us-east-1
-  EC2_INSTANCE_ID: i-0d749035d946d750a
+  AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+  EC2_INSTANCE_ID: ${{ vars.EC2_INSTANCE_ID }}
   DEPLOYMENT_DIR: /home/ec2-user/weave-socks
 
   # --- per-repository values ---
@@ -56,6 +58,15 @@ jobs:
     timeout-minutes: 30
 
     steps:
+      # Fail early (before any build or push) if the target is not configured.
+      - name: Check deploy settings
+        run: |
+          if [ -z "$EC2_INSTANCE_ID" ]; then
+            echo "::error::Set the repository variable EC2_INSTANCE_ID (Settings -> Secrets and variables -> Actions -> Variables)."
+            exit 1
+          fi
+          echo "Deploying to $EC2_INSTANCE_ID in $AWS_REGION"
+
       - name: Checkout
         uses: actions/checkout@v4
 
